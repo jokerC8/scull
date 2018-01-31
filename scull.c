@@ -12,7 +12,7 @@
 #define NUM 4
 #define DEVNAME "scull"
 
-DEFINE_SEMAPHORE(sem);
+//DEFINE_SEMAPHORE(sem);
 
 dev_t scull_devnum;
 uint scull_major,scull_minor;
@@ -96,10 +96,10 @@ static int scull_open(struct inode *inode, struct file *filp)
 	filp->private_data = dev;
 	
 	if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
-		if (down_interruptible(&sem))
+		if (down_interruptible(&dev->sem))
 		    return -ERESTARTSYS;
 		scull_trim(dev);
-		up(&sem);
+		up(&dev->sem);
 	}
 	return 0;
 }
@@ -119,7 +119,7 @@ static ssize_t scull_read(struct file *filp, char __user *buffer, size_t count, 
 	quantum = dev->quantum;
 	itemsize = qset * quantum;
 
-	if (down_interruptible(&sem))
+	if (down_interruptible(&dev->sem))
 	    return -ERESTARTSYS;
 	
 	if (*f_ops > dev->size) {
@@ -152,7 +152,7 @@ static ssize_t scull_read(struct file *filp, char __user *buffer, size_t count, 
 	*f_ops += count;
 	retval = count;
 out:
-	up(&sem);
+	up(&dev->sem);
 	return retval;
 }
 
@@ -171,7 +171,7 @@ static ssize_t scull_write(struct file *filp, const char __user *buffer, size_t 
 	quantum = dev->quantum;
 	itemsize = qset * quantum;
 
-	if (down_interruptible(&sem))
+	if (down_interruptible(&dev->sem))
 	    return -ERESTARTSYS;
 
 	item = *f_ops / itemsize;
@@ -209,7 +209,7 @@ static ssize_t scull_write(struct file *filp, const char __user *buffer, size_t 
 	scull_mem_debug(dev);
 #endif
 out:
-	up(&sem);
+	up(&dev->sem);
 	return retval;
 }
 
@@ -268,6 +268,7 @@ static void scull_setup_dev(struct scull_dev *dev)
 	dev->qset = SCULL_QSET;
 	dev->quantum = SCULL_QUANTUM;
 	dev->size = 0;
+	sema_init(&dev->sem, 1);
 	cdev_init(&dev->cdev, &scull_ops);
 	dev->cdev.owner = THIS_MODULE;
 	dev->cdev.ops = &scull_ops;
